@@ -1,0 +1,166 @@
+services:
+  auth-db:
+    image: postgres:13
+    container_name: auth-db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: auth_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - auth_db_data:/var/lib/postgresql/data
+      - ./services/auth-service/db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./services/auth-service/db/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d auth_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  flag-db:
+    image: postgres:13
+    container_name: flag-db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: flags_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - flag_db_data:/var/lib/postgresql/data
+      - ./services/flag-service/db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d flags_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  targeting-db:
+    image: postgres:13
+    container_name: targeting-db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: targeting_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - targeting_db_data:/var/lib/postgresql/data
+      - ./services/targeting-service/db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d targeting_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    container_name: dynamodb-local
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-inMemory"]
+    ports:
+      - "8000:8000"
+
+  auth-service:
+    build: ./services/auth-service
+    container_name: auth-service
+    environment:
+      PORT: "8001"
+      DATABASE_URL: "postgres://user:password@auth-db:5432/auth_db"
+      MASTER_KEY: "admin-secreto-123"
+    ports:
+      - "8001:8001"
+    depends_on:
+      auth-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  flag-service:
+    build: ./services/flag-service
+    container_name: flag-service
+    environment:
+      PORT: "8002"
+      DATABASE_URL: "postgres://user:password@flag-db:5432/flags_db"
+      AUTH_SERVICE_URL: "http://auth-service:8001"
+    ports:
+      - "8002:8002"
+    depends_on:
+      flag-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+
+  targeting-service:
+    build: ./services/targeting-service
+    container_name: targeting-service
+    environment:
+      PORT: "8003"
+      DATABASE_URL: "postgres://user:password@targeting-db:5432/targeting_db"
+      AUTH_SERVICE_URL: "http://auth-service:8001"
+    ports:
+      - "8003:8003"
+    depends_on:
+      targeting-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+
+  evaluation-service:
+    build: ./services/evaluation-service
+    container_name: evaluation-service
+    environment:
+      PORT: "8004"
+      REDIS_URL: "redis://redis:6379"
+      FLAG_SERVICE_URL: "http://flag-service:8002"
+      TARGETING_SERVICE_URL: "http://targeting-service:8003"
+      SERVICE_API_KEY: "tm_key_local_dev"
+    ports:
+      - "8004:8004"
+    depends_on:
+      redis:
+        condition: service_healthy
+      flag-service:
+        condition: service_started
+      targeting-service:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8004/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  analytics-service:
+    build: ./services/analytics-service
+    container_name: analytics-service
+    environment:
+      PORT: "8005"
+      AWS_REGION: "us-east-1"
+      AWS_ACCESS_KEY_ID: "dummy"
+      AWS_SECRET_ACCESS_KEY: "dummy"
+      AWS_DYNAMODB_TABLE: "ToggleMasterAnalytics"
+      DYNAMODB_ENDPOINT_URL: "http://dynamodb-local:8000"
+    ports:
+      - "8005:8005"
+    depends_on:
+      dynamodb-local:
+        condition: service_started
+
+volumes:
+  auth_db_data:
+  flag_db_data:
+  targeting_db_data:

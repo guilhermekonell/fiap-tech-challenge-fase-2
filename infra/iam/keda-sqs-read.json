@@ -1,0 +1,11 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "LerProfundidadeDaFila",
+      "Effect": "Allow",
+      "Action": ["sqs:GetQueueAttributes", "sqs:GetQueueUrl"],
+      "Resource": "arn:aws:sqs:us-east-1:<AWS_ACCOUNT_ID>:tm-evaluation-events"
+    }
+  ]
+}

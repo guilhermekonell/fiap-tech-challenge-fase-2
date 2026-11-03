@@ -1,0 +1,44 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: tm-fase2
+  region: us-east-1
+  version: "1.34"
+  tags:
+    Project: togglemaster
+
+vpc:
+  cidr: 10.20.0.0/16
+  nat:
+    gateway: Single
+  clusterEndpoints:
+    publicAccess: true
+    privateAccess: true
+
+iam:
+  withOIDC: true
+
+addons:
+  - name: vpc-cni
+  - name: coredns
+  - name: kube-proxy
+  - name: metrics-server
+
+managedNodeGroups:
+  - name: tm-ng
+    instanceType: t3.small
+    minSize: 1
+    desiredCapacity: 2
+    maxSize: 4
+    volumeSize: 20
+    volumeType: gp3
+    privateNetworking: true
+    labels:
+      role: workers
+    tags:
+      Project: togglemaster
+
+cloudWatch:
+  clusterLogging:
+    enableTypes: []

@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: flag-service, namespace: flags, labels: { app: flag-service } }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: flag-service } }
+  template:
+    metadata: { labels: { app: flag-service } }
+    spec:
+      containers:
+        - name: flag-service
+          image: <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/flag-service:latest
+          ports: [{ name: http, containerPort: 8002 }]
+          envFrom:
+            - configMapRef: { name: flag-service-config }
+            - secretRef: { name: flag-service-secrets }
+          resources:
+            requests: { cpu: 50m, memory: 96Mi }
+            limits:   { cpu: 250m, memory: 192Mi }
+          readinessProbe: { httpGet: { path: /health, port: http }, initialDelaySeconds: 5, periodSeconds: 10 }
+          livenessProbe:  { httpGet: { path: /health, port: http }, initialDelaySeconds: 15, periodSeconds: 20 }

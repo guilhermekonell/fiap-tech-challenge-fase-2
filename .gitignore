@@ -1,0 +1,14 @@
+infra/k8s/secrets.yaml
+.env
+.env.*
+*.pem
+*.key
+kubeconfig*
+
+__pycache__/
+*.pyc
+.venv/
+venv/
+.idea/
+.vscode/
+.DS_Store
